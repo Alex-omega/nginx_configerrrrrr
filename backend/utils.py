@@ -2,6 +2,7 @@
 """Utility functions for Nginx configuration management"""
 
 import os
+import re
 import subprocess
 from config import Config
 from models import Location
@@ -12,6 +13,25 @@ class NginxConfigGenerator:
     @staticmethod
     def generate_config(domain):
         """Generate complete Nginx configuration for a domain"""
+        locations = Location.get_by_domain(domain['id'])
+
+        # If a config already exists, preserve non-location directives (especially SSL/Certbot).
+        existing_path = os.path.join(Config.NGINX_CONF_DIR, f"{domain['name']}.conf")
+        existing_content = NginxConfigGenerator._read_existing_config(existing_path)
+        if existing_content is not None:
+            merged = NginxConfigGenerator._merge_locations_into_existing_config(
+                existing_content,
+                domain,
+                locations
+            )
+            if merged is not None:
+                return merged
+
+        return NginxConfigGenerator._generate_standard_config(domain, locations)
+
+    @staticmethod
+    def _generate_standard_config(domain, locations):
+        """Generate standard config for new domains or parser fallback"""
         domain_name = domain['name']
         server_name = domain['server_name']
         listen_port = domain['listen_port']
@@ -28,15 +48,284 @@ server {{
     error_log {Config.NGINX_LOG_DIR}/{domain_name}/error.log;
 """
         
-        # Get locations
-        locations = Location.get_by_domain(domain['id'])
-        
         for location in locations:
             config += NginxConfigGenerator._generate_location_block(location)
         
         config += "}\n"
         
         return config
+
+    @staticmethod
+    def _read_existing_config(conf_path):
+        if not os.path.exists(conf_path):
+            return None
+
+        try:
+            with open(conf_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        except Exception:
+            return None
+
+    @staticmethod
+    def _merge_locations_into_existing_config(existing_content, domain, locations):
+        """
+        Keep existing server-level directives and replace only location blocks
+        in the best-matching server block.
+        """
+        server_blocks = NginxConfigGenerator._extract_named_blocks(existing_content, 'server')
+        if not server_blocks:
+            return None
+
+        domain_names = set(domain.get('server_name', '').split())
+        if domain.get('name'):
+            domain_names.add(domain['name'])
+        listen_port_hint = str(domain.get('listen_port', '')).strip().split()[0]
+
+        candidates = []
+        for block in server_blocks:
+            block_names = NginxConfigGenerator._extract_server_names(block['inner'])
+            has_ssl = NginxConfigGenerator._server_block_has_ssl(block['inner'])
+            listen_values = NginxConfigGenerator._extract_directive_values(block['inner'], 'listen')
+            location_count = len(NginxConfigGenerator._extract_named_blocks(block['inner'], 'location'))
+            is_redirect_block = NginxConfigGenerator._looks_like_redirect_block(block['inner'])
+
+            name_match = bool(domain_names.intersection(set(block_names)))
+            listen_match = any(
+                NginxConfigGenerator._listen_matches_port(value, listen_port_hint)
+                for value in listen_values
+            )
+
+            candidates.append({
+                'block': block,
+                'has_ssl': has_ssl,
+                'location_count': location_count,
+                'is_redirect_block': is_redirect_block,
+                'name_match': name_match,
+                'listen_match': listen_match
+            })
+
+        target = NginxConfigGenerator._pick_server_block_for_update(candidates)
+        if target is None:
+            return None
+
+        new_location_section = ''.join(
+            NginxConfigGenerator._generate_location_block(location)
+            for location in locations
+        )
+        updated_server_raw = NginxConfigGenerator._replace_server_locations(
+            target['block']['raw'],
+            new_location_section
+        )
+
+        start = target['block']['start']
+        end = target['block']['end']
+        return existing_content[:start] + updated_server_raw + existing_content[end:]
+
+    @staticmethod
+    def _pick_server_block_for_update(candidates):
+        non_redirect = [c for c in candidates if not c['is_redirect_block']]
+        pool = non_redirect if non_redirect else candidates
+        if not pool:
+            return None
+
+        named_pool = [c for c in pool if c['name_match']]
+        pool = named_pool if named_pool else pool
+
+        return max(
+            pool,
+            key=lambda c: (
+                1 if c['has_ssl'] else 0,
+                1 if c['listen_match'] else 0,
+                c['location_count'],
+            )
+        )
+
+    @staticmethod
+    def _replace_server_locations(server_raw, new_location_section):
+        open_brace = NginxConfigGenerator._find_opening_brace(server_raw, server_raw.find('server') + len('server'))
+        if open_brace == -1:
+            return server_raw
+
+        close_brace = NginxConfigGenerator._find_matching_brace(server_raw, open_brace)
+        if close_brace == -1:
+            return server_raw
+
+        header = server_raw[:open_brace + 1]
+        inner = server_raw[open_brace + 1:close_brace]
+        tail = server_raw[close_brace:]
+
+        location_blocks = NginxConfigGenerator._extract_named_blocks(inner, 'location')
+        if location_blocks:
+            pieces = []
+            cursor = 0
+            for block in location_blocks:
+                pieces.append(inner[cursor:block['start']])
+                cursor = block['end']
+            pieces.append(inner[cursor:])
+            inner_without_locations = ''.join(pieces)
+        else:
+            inner_without_locations = inner
+
+        inner_without_locations = inner_without_locations.rstrip()
+        new_inner = inner_without_locations
+
+        if new_location_section:
+            if new_inner:
+                new_inner += "\n"
+            if not new_location_section.startswith("\n"):
+                new_location_section = "\n" + new_location_section
+            new_inner += new_location_section.rstrip() + "\n"
+
+        if new_inner and not new_inner.startswith("\n"):
+            new_inner = "\n" + new_inner
+
+        return header + new_inner + tail
+
+    @staticmethod
+    def _extract_named_blocks(content, keyword):
+        blocks = []
+        cursor = 0
+        pattern = re.compile(rf'^\s*{re.escape(keyword)}\b', re.MULTILINE)
+
+        while True:
+            match = pattern.search(content, cursor)
+            if not match:
+                break
+
+            brace_start = NginxConfigGenerator._find_opening_brace(content, match.end())
+            if brace_start == -1:
+                cursor = match.end()
+                continue
+
+            brace_end = NginxConfigGenerator._find_matching_brace(content, brace_start)
+            if brace_end == -1:
+                cursor = brace_start + 1
+                continue
+
+            blocks.append({
+                'start': match.start(),
+                'end': brace_end + 1,
+                'header': content[match.end():brace_start],
+                'inner': content[brace_start + 1:brace_end],
+                'raw': content[match.start():brace_end + 1]
+            })
+            cursor = brace_end + 1
+
+        return blocks
+
+    @staticmethod
+    def _find_opening_brace(content, start_idx):
+        in_comment = False
+
+        for idx in range(max(start_idx, 0), len(content)):
+            ch = content[idx]
+            if in_comment:
+                if ch == '\n':
+                    in_comment = False
+                continue
+
+            if ch == '#':
+                in_comment = True
+                continue
+            if ch == ';':
+                return -1
+            if ch == '{':
+                return idx
+            if ch == '}':
+                return -1
+
+        return -1
+
+    @staticmethod
+    def _find_matching_brace(content, opening_idx):
+        depth = 0
+        in_comment = False
+
+        for idx in range(opening_idx, len(content)):
+            ch = content[idx]
+            if in_comment:
+                if ch == '\n':
+                    in_comment = False
+                continue
+
+            if ch == '#':
+                in_comment = True
+                continue
+            if ch == '{':
+                depth += 1
+                continue
+            if ch == '}':
+                depth -= 1
+                if depth == 0:
+                    return idx
+
+        return -1
+
+    @staticmethod
+    def _strip_comments(content):
+        lines = []
+        for line in content.splitlines():
+            if '#' in line:
+                line = line[:line.index('#')]
+            lines.append(line)
+        return '\n'.join(lines)
+
+    @staticmethod
+    def _extract_directive_values(content, directive_name):
+        pattern = rf'^\s*{re.escape(directive_name)}\s+([^;]+);'
+        stripped = NginxConfigGenerator._strip_comments(content)
+        return [
+            value.strip()
+            for value in re.findall(pattern, stripped, re.MULTILINE)
+            if value.strip()
+        ]
+
+    @staticmethod
+    def _extract_server_names(content):
+        names = []
+        for value in NginxConfigGenerator._extract_directive_values(content, 'server_name'):
+            for token in value.split():
+                token = token.strip()
+                if token and token not in names:
+                    names.append(token)
+        return names
+
+    @staticmethod
+    def _server_block_has_ssl(server_inner_content):
+        for listen in NginxConfigGenerator._extract_directive_values(server_inner_content, 'listen'):
+            if re.search(r'(^|\s)ssl(\s|$)', listen):
+                return True
+
+        stripped = NginxConfigGenerator._strip_comments(server_inner_content)
+        return bool(re.search(r'^\s*ssl_certificate(_key)?\s+[^;]+;', stripped, re.MULTILINE))
+
+    @staticmethod
+    def _looks_like_redirect_block(server_inner_content):
+        stripped = NginxConfigGenerator._strip_comments(server_inner_content)
+        has_redirect = bool(re.search(r'\breturn\s+30[1278]\s+https://', stripped))
+        has_location = bool(NginxConfigGenerator._extract_named_blocks(server_inner_content, 'location'))
+        return has_redirect and not has_location
+
+    @staticmethod
+    def _listen_matches_port(listen_value, port_hint):
+        if not port_hint:
+            return False
+
+        tokens = listen_value.split()
+        if not tokens:
+            return False
+
+        first = tokens[0]
+        if first.startswith('[') and ']' in first:
+            after = first.split(']:', 1)
+            if len(after) == 2:
+                first = after[1]
+            else:
+                return False
+        elif ':' in first:
+            first = first.rsplit(':', 1)[-1]
+
+        return first == port_hint
     
     @staticmethod
     def _generate_location_block(location):
@@ -93,7 +382,7 @@ server {{
         
         # Write config file
         conf_path = os.path.join(Config.NGINX_CONF_DIR, f"{domain_name}.conf")
-        with open(conf_path, 'w') as f:
+        with open(conf_path, 'w', encoding='utf-8') as f:
             f.write(config)
         
         return conf_path
