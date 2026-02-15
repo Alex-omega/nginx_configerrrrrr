@@ -1,5 +1,6 @@
 // /frontend/src/api.js
 import axios from 'axios'
+import { getLanguage } from './i18n.js'
 
 const api = axios.create({
   baseURL: '/api',
@@ -8,12 +9,14 @@ const api = axios.create({
   }
 })
 
-// Add token to requests
+// Add token and language to requests
 api.interceptors.request.use(config => {
   const token = localStorage.getItem('token')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
+
+  config.headers['Accept-Language'] = getLanguage()
   return config
 })
 
@@ -35,48 +38,48 @@ export default {
   login(username, password) {
     return api.post('/login', { username, password })
   },
-  
+
   changePassword(oldPassword, newPassword) {
     return api.post('/change-password', {
       old_password: oldPassword,
       new_password: newPassword
     })
   },
-  
+
   // Domains
   getDomains() {
     return api.get('/domains')
   },
-  
+
   getDomain(id) {
     return api.get(`/domains/${id}`)
   },
-  
+
   createDomain(data) {
     return api.post('/domains', data)
   },
-  
+
   updateDomain(id, data) {
     return api.put(`/domains/${id}`, data)
   },
-  
+
   deleteDomain(id) {
     return api.delete(`/domains/${id}`)
   },
-  
+
   enableSSL(id) {
     return api.post(`/domains/${id}/ssl`)
   },
-  
+
   // Users
   getUsers() {
     return api.get('/users')
   },
-  
+
   createUser(data) {
     return api.post('/users', data)
   },
-  
+
   updateUserPermissions(id, domainIds) {
     return api.put(`/users/${id}`, { domain_ids: domainIds })
   }

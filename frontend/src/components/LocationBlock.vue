@@ -2,116 +2,114 @@
 <template>
   <div class="location-block">
     <div class="location-header">
-      <h4>Location: {{ localLocation.path }}</h4>
+      <h4>{{ $t('location.title', { path: localLocation.path }) }}</h4>
       <div class="header-actions">
         <label class="mode-toggle">
-          <input 
-            type="checkbox" 
+          <input
+            type="checkbox"
             :checked="localLocation.mode === 'advanced'"
             @change="toggleMode"
           />
-          <span>Advanced Mode</span>
+          <span>{{ $t('location.advancedMode') }}</span>
         </label>
-        <button @click="$emit('remove')" class="btn-remove">🗑️</button>
+        <button @click="$emit('remove')" class="btn-remove">{{ $t('common.delete') }}</button>
       </div>
     </div>
-    
+
     <div class="location-content">
       <div class="form-row">
         <div class="form-group">
-          <label>Location Path *</label>
-          <input 
-            v-model="localLocation.path" 
-            type="text" 
+          <label>{{ $t('location.locationPath') }} *</label>
+          <input
+            v-model="localLocation.path"
+            type="text"
             placeholder="/"
             @input="updateLocation"
           />
         </div>
-        
+
         <div class="form-group">
-          <label>Match Modifier</label>
+          <label>{{ $t('location.matchModifier') }}</label>
           <select v-model="localLocation.match_modifier" @change="updateLocation">
-            <option value="">Prefix (default)</option>
-            <option value="=">= (Exact Match)</option>
-            <option value="^~">^~ (Prefix, no regex)</option>
-            <option value="~">~ (Regex, case-sensitive)</option>
-            <option value="~*">~* (Regex, case-insensitive)</option>
+            <option value="">{{ $t('location.modifiers.prefixDefault') }}</option>
+            <option value="=">{{ $t('location.modifiers.exact') }}</option>
+            <option value="^~">{{ $t('location.modifiers.prefixNoRegex') }}</option>
+            <option value="~">{{ $t('location.modifiers.regexCaseSensitive') }}</option>
+            <option value="~*">{{ $t('location.modifiers.regexCaseInsensitive') }}</option>
           </select>
         </div>
       </div>
-      
-      <!-- Basic Mode -->
+
       <div v-if="localLocation.mode === 'basic'" class="basic-mode">
         <div class="form-group">
-          <label>Forward Type</label>
+          <label>{{ $t('location.forwardType') }}</label>
           <select v-model="localLocation.forward_type" @change="updateLocation">
-            <option value="dynamic">Dynamic (Proxy)</option>
-            <option value="static">Static (File Serving)</option>
+            <option value="dynamic">{{ $t('location.forwardTypes.dynamic') }}</option>
+            <option value="static">{{ $t('location.forwardTypes.static') }}</option>
           </select>
         </div>
-        
+
         <div v-if="localLocation.forward_type === 'dynamic'" class="form-group">
-          <label>Proxy Pass *</label>
-          <input 
-            v-model="localLocation.proxy_pass" 
-            type="text" 
+          <label>{{ $t('location.proxyPass') }} *</label>
+          <input
+            v-model="localLocation.proxy_pass"
+            type="text"
             placeholder="http://127.0.0.1:8080"
             @input="updateLocation"
           />
-          <small>Target backend server (e.g., http://127.0.0.1:8080)</small>
+          <small>{{ $t('location.targetBackendHint') }}</small>
         </div>
-        
+
         <div v-else class="form-group">
-          <label>Root Path *</label>
-          <input 
-            v-model="localLocation.root_path" 
-            type="text" 
+          <label>{{ $t('location.rootPath') }} *</label>
+          <input
+            v-model="localLocation.root_path"
+            type="text"
             placeholder="/var/www/html"
             @input="updateLocation"
           />
-          <small>Local directory path to serve files from</small>
+          <small>{{ $t('location.rootPathHint') }}</small>
         </div>
-        
+
         <div class="info-box">
-          <strong>📋 Standard Template Applied:</strong>
+          <strong>{{ $t('location.templateApplied') }}</strong>
           <ul>
-            <li v-if="localLocation.forward_type === 'dynamic'">Proxy headers (Host, X-Real-IP, X-Forwarded-For, etc.)</li>
-            <li v-if="localLocation.forward_type === 'dynamic'">Timeouts: 1200s connect/send/read</li>
-            <li v-if="localLocation.forward_type === 'dynamic'">Max body size: 500m</li>
-            <li v-if="localLocation.forward_type === 'dynamic'">Keepalive: 300s</li>
-            <li v-if="localLocation.forward_type === 'static'">Index files: index.html, index.htm</li>
+            <li v-if="localLocation.forward_type === 'dynamic'">{{ $t('location.proxyHeaders') }}</li>
+            <li v-if="localLocation.forward_type === 'dynamic'">{{ $t('location.proxyTimeouts') }}</li>
+            <li v-if="localLocation.forward_type === 'dynamic'">{{ $t('location.proxyBodySize') }}</li>
+            <li v-if="localLocation.forward_type === 'dynamic'">{{ $t('location.proxyKeepalive') }}</li>
+            <li v-if="localLocation.forward_type === 'static'">{{ $t('location.staticIndexes') }}</li>
           </ul>
         </div>
       </div>
-      
-      <!-- Advanced Mode -->
+
       <div v-else class="advanced-mode">
         <div class="form-group">
-          <label>Custom Configuration</label>
-          <textarea 
-            v-model="localLocation.config_content" 
+          <label>{{ $t('location.customConfig') }}</label>
+          <textarea
+            v-model="localLocation.config_content"
             rows="15"
-            placeholder="Enter custom Nginx directives..."
+            :placeholder="$t('location.customConfigPlaceholder')"
             @input="updateLocation"
           ></textarea>
-          <small>Enter raw Nginx directives (without location block wrapper)</small>
+          <small>{{ $t('location.customConfigHint') }}</small>
         </div>
-        
+
         <details class="help-section">
-          <summary>📚 Common Nginx Directives</summary>
+          <summary>{{ $t('location.commonDirectives') }}</summary>
           <div class="help-content">
-            <h5>Proxy Directives:</h5>
+            <h5>{{ $t('location.proxyDirectives') }}</h5>
             <code>proxy_pass http://backend;
 proxy_set_header Host $host;
 proxy_set_header X-Real-IP $remote_addr;
 proxy_connect_timeout 60s;</code>
-            
-            <h5>Static File Directives:</h5>
+
+            <h5>{{ $t('location.staticDirectives') }}</h5>
             <code>root /var/www/html;
 index index.html;
 try_files $uri $uri/ =404;</code>
-            
-            <h5>Security:</h5>
+
+            <h5>{{ $t('location.securityDirectives') }}</h5>
             <code>add_header X-Frame-Options "SAMEORIGIN";
 add_header X-Content-Type-Options "nosniff";</code>
           </div>
@@ -151,11 +149,10 @@ export default {
     updateLocation() {
       this.$emit('update', this.localLocation)
     },
-    
+
     toggleMode(event) {
       this.localLocation.mode = event.target.checked ? 'advanced' : 'basic'
-      
-      // When switching to advanced, populate with basic template
+
       if (this.localLocation.mode === 'advanced' && !this.localLocation.config_content) {
         if (this.localLocation.forward_type === 'dynamic' && this.localLocation.proxy_pass) {
           this.localLocation.config_content = `proxy_pass ${this.localLocation.proxy_pass};
@@ -175,7 +172,7 @@ keepalive_timeout 300s;`
 index index.html index.htm;`
         }
       }
-      
+
       this.updateLocation()
     }
   }
@@ -228,7 +225,8 @@ index index.html index.htm;`
   padding: 0.5rem 0.75rem;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 0.85rem;
+  color: white;
   transition: background 0.3s;
 }
 

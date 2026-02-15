@@ -3,83 +3,82 @@
   <div class="dashboard">
     <div class="container">
       <div class="header">
-        <h2>📋 Domain Management</h2>
+        <h2>{{ $t('dashboard.title') }}</h2>
         <button @click="createDomain" class="btn btn-primary">
-          ➕ Add Domain
+          {{ $t('dashboard.addDomain') }}
         </button>
       </div>
-      
+
       <div v-if="loading" class="loading">
-        Loading domains...
+        {{ $t('dashboard.loadingDomains') }}
       </div>
-      
+
       <div v-else-if="error" class="error-message">
         {{ error }}
       </div>
-      
+
       <div v-else-if="domains.length === 0" class="empty-state">
-        <p>No domains configured yet.</p>
+        <p>{{ $t('dashboard.empty') }}</p>
         <button @click="createDomain" class="btn btn-primary">
-          Create Your First Domain
+          {{ $t('dashboard.createFirstDomain') }}
         </button>
       </div>
-      
+
       <div v-else class="domains-grid">
-        <div 
-          v-for="domain in domains" 
-          :key="domain.id" 
+        <div
+          v-for="domain in domains"
+          :key="domain.id"
           class="domain-card"
           @click="editDomain(domain.id)"
         >
           <div class="domain-header">
             <h3>{{ domain.name }}</h3>
-            <span v-if="domain.ssl_enabled" class="ssl-badge">🔒 SSL</span>
+            <span v-if="domain.ssl_enabled" class="ssl-badge">{{ $t('dashboard.ssl') }}</span>
           </div>
-          
+
           <div class="domain-info">
             <div class="info-item">
-              <strong>Server Name:</strong> {{ domain.server_name }}
+              <strong>{{ $t('dashboard.serverName') }}:</strong> {{ domain.server_name }}
             </div>
             <div class="info-item">
-              <strong>Port:</strong> {{ domain.listen_port }}
+              <strong>{{ $t('dashboard.port') }}:</strong> {{ domain.listen_port }}
             </div>
             <div class="info-item">
-              <strong>Locations:</strong> {{ domain.locations?.length || 0 }}
+              <strong>{{ $t('dashboard.locations') }}:</strong> {{ domain.locations?.length || 0 }}
             </div>
           </div>
-          
+
           <div class="domain-actions">
-            <button 
-              @click.stop="editDomain(domain.id)" 
+            <button
+              @click.stop="editDomain(domain.id)"
               class="btn btn-small btn-secondary"
             >
-              ✏️ Edit
+              {{ $t('dashboard.edit') }}
             </button>
-            <button 
+            <button
               v-if="user.is_superuser"
-              @click.stop="confirmDelete(domain)" 
+              @click.stop="confirmDelete(domain)"
               class="btn btn-small btn-danger"
             >
-              🗑️ Delete
+              {{ $t('dashboard.delete') }}
             </button>
           </div>
         </div>
       </div>
     </div>
-    
-    <!-- Delete Confirmation Modal -->
+
     <div v-if="deleteModal" class="modal">
       <div class="modal-content">
-        <h3>⚠️ Confirm Deletion</h3>
-        <p>Are you sure you want to delete <strong>{{ deleteModal.name }}</strong>?</p>
-        <p class="warning">This will remove the Nginx configuration file and cannot be undone.</p>
-        
+        <h3>{{ $t('dashboard.confirmDeletion') }}</h3>
+        <p>{{ $t('dashboard.deleteConfirmText', { name: deleteModal.name }) }}</p>
+        <p class="warning">{{ $t('dashboard.deleteWarning') }}</p>
+
         <div class="modal-actions">
           <button @click="deleteModal = null" class="btn btn-secondary">
-            Cancel
+            {{ $t('common.cancel') }}
           </button>
           <button @click="deleteDomain" class="btn btn-danger">
-            Delete
+            {{ $t('dashboard.delete') }}
           </button>
         </div>
       </div>
@@ -112,38 +111,38 @@ export default {
     async loadDomains() {
       this.loading = true
       this.error = ''
-      
+
       try {
         const response = await api.getDomains()
         this.domains = response.data
       } catch (error) {
-        this.error = error.response?.data?.error || 'Failed to load domains'
+        this.error = error.response?.data?.error || this.$t('dashboard.loadFailed')
       } finally {
         this.loading = false
       }
     },
-    
+
     createDomain() {
       this.$router.push('/domain/new')
     },
-    
+
     editDomain(id) {
       this.$router.push(`/domain/${id}`)
     },
-    
+
     confirmDelete(domain) {
       this.deleteModal = domain
     },
-    
+
     async deleteDomain() {
       const domainId = this.deleteModal.id
       this.deleteModal = null
-      
+
       try {
         await api.deleteDomain(domainId)
         this.domains = this.domains.filter(d => d.id !== domainId)
       } catch (error) {
-        this.error = error.response?.data?.error || 'Failed to delete domain'
+        this.error = error.response?.data?.error || this.$t('dashboard.deleteFailed')
       }
     }
   }
@@ -162,7 +161,7 @@ export default {
   background: white;
   padding: 2rem;
   border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .header {
@@ -178,7 +177,8 @@ export default {
   color: #333;
 }
 
-.loading, .empty-state {
+.loading,
+.empty-state {
   text-align: center;
   padding: 3rem;
   color: #666;
@@ -206,7 +206,7 @@ export default {
 
 .domain-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   border-color: #667eea;
 }
 
@@ -308,7 +308,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0,0,0,0.7);
+  background: rgba(0, 0, 0, 0.7);
   display: flex;
   justify-content: center;
   align-items: center;

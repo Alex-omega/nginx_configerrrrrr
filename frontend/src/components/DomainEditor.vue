@@ -3,72 +3,72 @@
   <div class="editor-container">
     <div class="editor">
       <div class="editor-header">
-        <button @click="goBack" class="btn-back">← Back</button>
-        <h2>{{ isNew ? '➕ New Domain' : '✏️ Edit Domain' }}</h2>
+        <button @click="goBack" class="btn-back">{{ $t('common.back') }}</button>
+        <h2>{{ isNew ? $t('domainEditor.newDomain') : $t('domainEditor.editDomain') }}</h2>
       </div>
-      
+
       <div v-if="error" class="error-message">
         {{ error }}
       </div>
-      
+
       <div v-if="success" class="success-message">
         {{ success }}
       </div>
-      
+
       <div class="form-section">
-        <h3>🌐 Server Configuration</h3>
-        
+        <h3>{{ $t('domainEditor.serverConfig') }}</h3>
+
         <div class="form-group">
-          <label>Domain Name *</label>
-          <input 
-            v-model="domain.name" 
-            type="text" 
+          <label>{{ $t('domainEditor.domainName') }} *</label>
+          <input
+            v-model="domain.name"
+            type="text"
             placeholder="example.com"
             :disabled="!isNew"
             required
           />
-          <small>This will be used as configuration filename</small>
+          <small>{{ $t('domainEditor.configFilenameHint') }}</small>
         </div>
-        
+
         <div class="form-group">
-          <label>Server Name *</label>
-          <input 
-            v-model="domain.server_name" 
-            type="text" 
+          <label>{{ $t('domainEditor.serverName') }} *</label>
+          <input
+            v-model="domain.server_name"
+            type="text"
             placeholder="example.com www.example.com"
             required
           />
-          <small>Space-separated list of server names</small>
+          <small>{{ $t('domainEditor.serverNameHint') }}</small>
         </div>
-        
+
         <div class="form-group">
-          <label>Listen Port</label>
-          <input 
-            v-model="domain.listen_port" 
-            type="text" 
+          <label>{{ $t('domainEditor.listenPort') }}</label>
+          <input
+            v-model="domain.listen_port"
+            type="text"
             placeholder="80"
           />
         </div>
-        
+
         <div v-if="!isNew && !domain.ssl_enabled" class="form-group">
           <button @click="enableSSL" class="btn btn-success" :disabled="sslLoading">
-            🔒 {{ sslLoading ? 'Enabling SSL...' : 'Enable HTTPS (Certbot)' }}
+            {{ sslLoading ? $t('domainEditor.enablingSsl') : $t('domainEditor.enableHttps') }}
           </button>
         </div>
       </div>
-      
+
       <div class="form-section">
         <div class="section-header">
-          <h3>📍 Location Blocks</h3>
+          <h3>{{ $t('domainEditor.locationBlocks') }}</h3>
           <button @click="addLocation" class="btn btn-small btn-primary">
-            ➕ Add Location
+            {{ $t('domainEditor.addLocation') }}
           </button>
         </div>
-        
+
         <div v-if="domain.locations.length === 0" class="empty-state">
-          No locations configured
+          {{ $t('domainEditor.noLocations') }}
         </div>
-        
+
         <location-block
           v-for="(location, index) in domain.locations"
           :key="index"
@@ -78,13 +78,13 @@
           @remove="removeLocation(index)"
         />
       </div>
-      
+
       <div class="editor-actions">
         <button @click="goBack" class="btn btn-secondary">
-          Cancel
+          {{ $t('common.cancel') }}
         </button>
         <button @click="save" class="btn btn-primary" :disabled="saving">
-          {{ saving ? 'Saving...' : 'Save & Apply' }}
+          {{ saving ? $t('domainEditor.saving') : $t('common.saveApply') }}
         </button>
       </div>
     </div>
@@ -119,7 +119,7 @@ export default {
   },
   mounted() {
     const id = this.$route.params.id
-    
+
     if (id && id !== 'new') {
       this.isNew = false
       this.loadDomain(id)
@@ -134,17 +134,17 @@ export default {
       try {
         const response = await api.getDomain(id)
         this.domain = response.data
-        
+
         if (this.domain.locations.length === 0) {
           this.addLocation()
         }
       } catch (error) {
-        this.error = error.response?.data?.error || 'Failed to load domain'
+        this.error = error.response?.data?.error || this.$t('domainEditor.loadFailed')
       } finally {
         this.loading = false
       }
     },
-    
+
     addLocation() {
       this.domain.locations.push({
         path: this.domain.locations.length === 0 ? '/' : '/api',
@@ -156,62 +156,62 @@ export default {
         config_content: ''
       })
     },
-    
+
     updateLocation(index, data) {
       this.domain.locations[index] = { ...this.domain.locations[index], ...data }
     },
-    
+
     removeLocation(index) {
       if (this.domain.locations.length > 1) {
         this.domain.locations.splice(index, 1)
       } else {
-        this.error = 'At least one location is required'
+        this.error = this.$t('domainEditor.needOneLocation')
       }
     },
-    
+
     async save() {
       this.error = ''
       this.success = ''
-      
+
       if (!this.domain.name || !this.domain.server_name) {
-        this.error = 'Domain name and server name are required'
+        this.error = this.$t('domainEditor.domainRequired')
         return
       }
-      
+
       this.saving = true
-      
+
       try {
         if (this.isNew) {
           await api.createDomain(this.domain)
-          this.success = 'Domain created successfully!'
+          this.success = this.$t('domainEditor.domainCreatedSuccess')
           setTimeout(() => this.$router.push('/'), 1500)
         } else {
           await api.updateDomain(this.$route.params.id, this.domain)
-          this.success = 'Domain updated successfully!'
+          this.success = this.$t('domainEditor.domainUpdatedSuccess')
         }
       } catch (error) {
-        this.error = error.response?.data?.error || 'Failed to save domain'
+        this.error = error.response?.data?.error || this.$t('domainEditor.saveFailed')
       } finally {
         this.saving = false
       }
     },
-    
+
     async enableSSL() {
       this.error = ''
       this.sslLoading = true
-      
+
       try {
         await api.enableSSL(this.$route.params.id)
-        this.success = 'SSL certificate obtained successfully!'
+        this.success = this.$t('domainEditor.sslEnabledSuccess')
         this.domain.ssl_enabled = true
         this.domain.listen_port = '443'
       } catch (error) {
-        this.error = error.response?.data?.error || 'Failed to enable SSL'
+        this.error = error.response?.data?.error || this.$t('domainEditor.sslEnableFailed')
       } finally {
         this.sslLoading = false
       }
     },
-    
+
     goBack() {
       this.$router.push('/')
     }
@@ -231,7 +231,7 @@ export default {
   background: white;
   padding: 2rem;
   border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .editor-header {

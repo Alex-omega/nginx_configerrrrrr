@@ -3,29 +3,29 @@
   <div class="user-manager">
     <div class="container">
       <div class="header">
-        <h2>👥 User Management</h2>
+        <h2>{{ $t('users.title') }}</h2>
         <button @click="showAddUser = true" class="btn btn-primary">
-          ➕ Add User
+          {{ $t('users.addUser') }}
         </button>
       </div>
-      
+
       <div v-if="loading" class="loading">
-        Loading users...
+        {{ $t('users.loadingUsers') }}
       </div>
-      
+
       <div v-else-if="error" class="error-message">
         {{ error }}
       </div>
-      
+
       <div v-else class="users-table">
         <table>
           <thead>
             <tr>
-              <th>Username</th>
-              <th>Type</th>
-              <th>Accessible Domains</th>
-              <th>Created</th>
-              <th>Actions</th>
+              <th>{{ $t('users.username') }}</th>
+              <th>{{ $t('users.type') }}</th>
+              <th>{{ $t('users.accessibleDomains') }}</th>
+              <th>{{ $t('users.created') }}</th>
+              <th>{{ $t('users.actions') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -33,20 +33,20 @@
               <td>{{ user.username }}</td>
               <td>
                 <span :class="['badge', user.is_superuser ? 'badge-admin' : 'badge-user']">
-                  {{ user.is_superuser ? 'Superuser' : 'User' }}
+                  {{ user.is_superuser ? $t('users.superuser') : $t('users.user') }}
                 </span>
               </td>
               <td>
-                {{ user.is_superuser ? 'All' : user.domain_ids.length }}
+                {{ user.is_superuser ? $t('users.all') : user.domain_ids.length }}
               </td>
               <td>{{ formatDate(user.created_at) }}</td>
               <td>
-                <button 
+                <button
                   v-if="!user.is_superuser"
-                  @click="editUser(user)" 
+                  @click="editUser(user)"
                   class="btn btn-small btn-secondary"
                 >
-                  ✏️ Edit Permissions
+                  {{ $t('users.editPermissions') }}
                 </button>
               </td>
             </tr>
@@ -54,47 +54,46 @@
         </table>
       </div>
     </div>
-    
-    <!-- Add User Modal -->
+
     <div v-if="showAddUser" class="modal">
       <div class="modal-content">
-        <h3>➕ Add New User</h3>
-        
+        <h3>{{ $t('users.addNewUser') }}</h3>
+
         <div v-if="modalError" class="error-message">
           {{ modalError }}
         </div>
-        
+
         <form @submit.prevent="createUser">
           <div class="form-group">
-            <label>Username *</label>
-            <input 
-              v-model="newUser.username" 
-              type="text" 
+            <label>{{ $t('users.username') }} *</label>
+            <input
+              v-model="newUser.username"
+              type="text"
               required
-              placeholder="Enter username"
+              :placeholder="$t('users.enterUsername')"
             />
           </div>
-          
+
           <div class="form-group">
-            <label>Password *</label>
-            <input 
-              v-model="newUser.password" 
-              type="password" 
+            <label>{{ $t('users.password') }} *</label>
+            <input
+              v-model="newUser.password"
+              type="password"
               required
-              placeholder="At least 6 characters"
+              :placeholder="$t('users.atLeast6')"
             />
           </div>
-          
+
           <div class="form-group">
-            <label>Accessible Domains</label>
+            <label>{{ $t('users.accessibleDomains') }}</label>
             <div class="domain-checklist">
-              <label 
-                v-for="domain in domains" 
+              <label
+                v-for="domain in domains"
                 :key="domain.id"
                 class="checkbox-label"
               >
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   :value="domain.id"
                   v-model="newUser.domain_ids"
                 />
@@ -102,39 +101,38 @@
               </label>
             </div>
           </div>
-          
+
           <div class="modal-actions">
             <button type="button" @click="showAddUser = false" class="btn btn-secondary">
-              Cancel
+              {{ $t('common.cancel') }}
             </button>
             <button type="submit" class="btn btn-primary" :disabled="creating">
-              {{ creating ? 'Creating...' : 'Create User' }}
+              {{ creating ? $t('users.creating') : $t('users.createUser') }}
             </button>
           </div>
         </form>
       </div>
     </div>
-    
-    <!-- Edit User Permissions Modal -->
+
     <div v-if="editingUser" class="modal">
       <div class="modal-content">
-        <h3>✏️ Edit Permissions: {{ editingUser.username }}</h3>
-        
+        <h3>{{ $t('users.editPermissionsTitle', { username: editingUser.username }) }}</h3>
+
         <div v-if="modalError" class="error-message">
           {{ modalError }}
         </div>
-        
+
         <form @submit.prevent="updateUserPermissions">
           <div class="form-group">
-            <label>Accessible Domains</label>
+            <label>{{ $t('users.accessibleDomains') }}</label>
             <div class="domain-checklist">
-              <label 
-                v-for="domain in domains" 
+              <label
+                v-for="domain in domains"
                 :key="domain.id"
                 class="checkbox-label"
               >
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   :value="domain.id"
                   v-model="editingUser.domain_ids"
                 />
@@ -142,13 +140,13 @@
               </label>
             </div>
           </div>
-          
+
           <div class="modal-actions">
             <button type="button" @click="editingUser = null" class="btn btn-secondary">
-              Cancel
+              {{ $t('common.cancel') }}
             </button>
             <button type="submit" class="btn btn-primary" :disabled="updating">
-              {{ updating ? 'Updating...' : 'Update Permissions' }}
+              {{ updating ? $t('users.updating') : $t('users.updatePermissions') }}
             </button>
           </div>
         </form>
@@ -187,71 +185,72 @@ export default {
     async loadData() {
       this.loading = true
       this.error = ''
-      
+
       try {
         const [usersRes, domainsRes] = await Promise.all([
           api.getUsers(),
           api.getDomains()
         ])
-        
+
         this.users = usersRes.data
         this.domains = domainsRes.data
       } catch (error) {
-        this.error = error.response?.data?.error || 'Failed to load data'
+        this.error = error.response?.data?.error || this.$t('users.loadFailed')
       } finally {
         this.loading = false
       }
     },
-    
+
     async createUser() {
       this.modalError = ''
-      
+
       if (!this.newUser.username || !this.newUser.password) {
-        this.modalError = 'Username and password are required'
+        this.modalError = this.$t('users.usernamePasswordRequired')
         return
       }
-      
+
       if (this.newUser.password.length < 6) {
-        this.modalError = 'Password must be at least 6 characters'
+        this.modalError = this.$t('users.passwordTooShort')
         return
       }
-      
+
       this.creating = true
-      
+
       try {
         await api.createUser(this.newUser)
         await this.loadData()
         this.showAddUser = false
         this.newUser = { username: '', password: '', domain_ids: [] }
       } catch (error) {
-        this.modalError = error.response?.data?.error || 'Failed to create user'
+        this.modalError = error.response?.data?.error || this.$t('users.createFailed')
       } finally {
         this.creating = false
       }
     },
-    
+
     editUser(user) {
       this.editingUser = { ...user }
       this.modalError = ''
     },
-    
+
     async updateUserPermissions() {
       this.modalError = ''
       this.updating = true
-      
+
       try {
         await api.updateUserPermissions(this.editingUser.id, this.editingUser.domain_ids)
         await this.loadData()
         this.editingUser = null
       } catch (error) {
-        this.modalError = error.response?.data?.error || 'Failed to update permissions'
+        this.modalError = error.response?.data?.error || this.$t('users.updateFailed')
       } finally {
         this.updating = false
       }
     },
-    
+
     formatDate(dateString) {
-      return new Date(dateString).toLocaleDateString()
+      const locale = this.$i18nState.language === 'zh' ? 'zh-CN' : 'en-US'
+      return new Date(dateString).toLocaleDateString(locale)
     }
   }
 }
@@ -269,7 +268,7 @@ export default {
   background: white;
   padding: 2rem;
   border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .header {
@@ -384,7 +383,7 @@ td {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0,0,0,0.7);
+  background: rgba(0, 0, 0, 0.7);
   display: flex;
   justify-content: center;
   align-items: center;
